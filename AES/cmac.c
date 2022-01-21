@@ -61,7 +61,7 @@ static void cmac_generate_subkey( uint8_t * key, uint8_t * K1, uint8_t * K2 ) {
 	}
 }
 
-void cmac_gen( uint8_t * key, uint8_t * msg, uint8_t msg_len, uint8_t * cmac ) {
+void cmac_gen( uint8_t * key, uint8_t * msg, uint8_t msg_len, uint8_t * mic ) {
 	uint8_t K1[16], K2[16], M_last[16], tmp[16], X[16], Y[16];
 	uint8_t flag, i;
 
@@ -101,5 +101,5 @@ void cmac_gen( uint8_t * key, uint8_t * msg, uint8_t msg_len, uint8_t * cmac ) {
 	}
 	cmac_xor( M_last, X, Y );
 	aes_encrypt( key, Y );
-	memcpy( cmac, Y, 16 );
+	memcpy( mic, Y, 4 );
 }

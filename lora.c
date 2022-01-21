@@ -63,7 +63,7 @@ uint8_t lora_init() {
 
 	uint8_t version = lora_read_register( REG_VERSION );
 	if( version != SX1276_VERSION )
-		return INIT_FAILED;
+		return INIT_RADIO_FAILED;
 
 	lora_sleep();
 	lora_write_register( REG_OP_MODE, MODE_LONG_RANGE_MODE );
@@ -85,7 +85,7 @@ uint8_t lora_init() {
 
 	_delay_ms( 50 );
 
-	return INIT_SUCCESS;
+	return INIT_RADIO_SUCCESS;
 }
 //*************************************************************************************************************
 
