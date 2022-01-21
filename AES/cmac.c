@@ -94,7 +94,7 @@ void cmac_gen( uint8_t * key, uint8_t * msg, uint8_t msg_len, uint8_t * mic ) {
 	memset( X, 0, 16 );
 
 	//Step 6:
-	for( i = 1; i < n - 1; i++ ) {
+	for( i = 0; i < n - 1; i++ ) {
 		cmac_xor( X, msg + ( 16 * i ), Y );
 		aes_encrypt( key, Y );
 		memcpy( X, Y, 16 );

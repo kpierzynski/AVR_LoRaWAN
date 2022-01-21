@@ -11,9 +11,12 @@
 #include <string.h>
 
 #include "lora.h"
+#include "lora_mem.h"
 #include "lorawan_credentials.h"
 #include "random.h"
 #include "AES/cmac.h"
+
+#include "MK_USART/mkuart.h"
 
 #define JOIN_REQUEST 0b000
 #define JOIN_ACCEPT 0b001
@@ -55,5 +58,8 @@ typedef struct {
 	uint8_t AppSKey[APPSKEY_LEN];
 	uint8_t NwkSKey[NWKSKEY_LEN];
 } State_t;
+
+uint8_t lorawan_init();
+uint8_t lorawan_join();
 
 #endif /* LORAWAN_H_ */

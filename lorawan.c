@@ -23,6 +23,9 @@ uint8_t lorawan_init() {
 	memcpy( state.AppEUI, (uint8_t[] ) { APP_EUI }, APP_EUI_LEN );
 	memcpy( state.AppKey, (uint8_t[] ) { APP_KEY }, APP_KEY_LEN );
 
+	//Init Timer1 (16MHz with 1024 presc gives 1tick = 64uS
+	TCCR1B |= ( 1 << CS12 ) | ( 1 << CS10 );
+
 	return INIT_SUCCESS;
 }
 
@@ -50,7 +53,50 @@ uint8_t lorawan_join() {
 
 		cmac_gen( state.AppKey, JoinRequest.buf, 19, JoinRequest.params.MIC );
 
+		uart_puts( "JoinRequest.buf: " );
+		uart_puthex( JoinRequest.buf, JOIN_REQUEST_LEN );
+		uart_puts( "state.AppKey: " );
+		uart_puthex( state.AppKey, 16 );
 		lora_putd( JoinRequest.buf, JOIN_REQUEST_LEN );
+	}
+
+	lorawan_send_join_request();
+	//Wait for TxDone Interrupt
+	while( !dio0_flag )
+		;
+	TCNT1 = 0;
+	dio0_flag = 0;
+	dio1_flag = 0;
+
+	lora_config_single_rx();
+	while( TCNT1 )
+		;
+	while( TCNT1 < 12590 - 8 )
+		;
+	//TODO: make this independent of F_CPU
+
+	lora_rx_single();
+
+	//TODO: reset TCNT1 and implement soft timeout
+	while( 1 ) {
+
+		if( dio0_flag ) {
+			dio0_flag = 0;
+
+			uint8_t len = lora_get_packet_len();
+			uint8_t buf[len];
+
+			lora_read_rx( buf, len );
+			uart_puthex( buf, len );
+
+			return JOIN_SUCCESS;
+		} else if( dio1_flag ) {
+			dio1_flag = 0;
+
+			uart_puts( "lorawan_join(): dio1_flag set. RX TIMEOUT\r\n" );
+			return JOIN_FAILED;
+		}
+
 	}
 
 	return JOIN_SUCCESS;

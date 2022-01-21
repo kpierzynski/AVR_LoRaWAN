@@ -13,6 +13,8 @@
 #include "AES/cmac.h"
 #include "AES/qqq_aes.h"
 
+#include "lorawan.h"
+
 #include "MK_USART/mkuart.h"
 
 int main() {
@@ -30,6 +32,21 @@ int main() {
 	USART_Init( __UBRR );
 	sei();
 	// =========
+
+	if( lorawan_init() != JOIN_SUCCESS ) {
+		uart_puts_P(PSTR("Failed to init lorawan module.\r\n"));
+		while(1);
+	}
+
+	uart_puts_P(PSTR("Trying to join.\r\n"));
+	while( 1 ) {
+		if( lorawan_join() == JOIN_SUCCESS ) {
+			uart_puts_P(PSTR("Join success.\r\n"));
+			break;
+		}
+		_delay_ms(20000);
+		uart_puts_P(PSTR("Join failed. Trying to join.\r\n"));
+	}
 
 	while( 1 ) {
 
