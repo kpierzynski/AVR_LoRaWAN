@@ -1,4 +1,5 @@
 #include "lora.h"
+
 #include "lora_mem.h"
 #include "spi.h"
 
@@ -71,7 +72,7 @@ uint8_t lora_init() {
 	lora_set_spreading_factor( SF7 );
 	lora_set_bandwidth( BANDWIDTH_125_KHZ );
 	lora_set_coding_rate( CODING_RATE_4_5 );
-	lora_set_freq( 868300000UL );
+	lora_set_freq( 868100000UL );
 
 	lora_write_register( REG_PAYLOAD_MAX_LENGTH, MAX_PKT_LENGTH );
 
@@ -258,7 +259,7 @@ inline uint8_t lora_get_packet_len() {
 
 //*************************************************************************************************************
 // SEND AND RECEIVE
-void lora_config_single_rx() {
+void lora_prepare_rx_single() {
 	lora_standby();
 	_delay_ms( 1 );
 

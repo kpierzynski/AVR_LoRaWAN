@@ -93,7 +93,7 @@ uint8_t lora_random();
 uint8_t lora_read_rx( uint8_t * buf, uint8_t buf_max_len );
 uint8_t lora_get_packet_len();
 
-void lora_config_single_rx();
+void lora_prepare_rx_single();
 void lora_receive();
 void lora_putd( uint8_t *buf, uint8_t len );
 //*************************************************************************************************************

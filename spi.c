@@ -1,4 +1,5 @@
 #include "spi.h"
+
 #include "lora.h"
 
 void spi_init() {
