@@ -3,8 +3,6 @@
 #include "lora_mem.h"
 #include "spi.h"
 
-static uint8_t buf[MAX_PKT_LENGTH]; //TODO: is this still needed?
-
 //*************************************************************************************************************
 // DIO FLAGS
 volatile uint8_t dio0_flag;
@@ -247,7 +245,7 @@ uint8_t lora_read_rx( uint8_t * buf, uint8_t buf_max_len ) {
 	uint8_t i;
 	uint8_t loop = ( len > buf_max_len ) ? buf_max_len : len;
 	for( i = 0; i < loop; i++ )
-		buf[i] = lora_read_register( REG_FIFO );
+		buf[ i ] = lora_read_register( REG_FIFO );
 
 	return len;
 }
@@ -292,6 +290,24 @@ void lora_receive() {
 	lora_write_register( REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS );
 }
 
+uint8_t lora_getd( uint8_t * packet, uint8_t * len ) {
+	lora_rx_single();
+
+	while( 1 ) {
+		if( dio0_flag ) {
+			*len = lora_get_packet_len();
+
+			lora_read_rx( packet, *len );
+
+			dio0_flag = 0;
+			return GETD_SUCCESS;
+		} else if( dio1_flag ) {
+			dio1_flag = 0;
+			return GETD_TIMEOUT;
+		}
+	}
+}
+
 void lora_putd( uint8_t *buf, uint8_t len ) {
 	if( len == 0 ) {
 		return;
@@ -323,10 +339,14 @@ void lora_putd( uint8_t *buf, uint8_t len ) {
 
 	lora_write_register( REG_PAYLOAD_LENGTH, len );
 	for( uint8_t i = 0; i < len; i++ )
-		lora_write_register( REG_FIFO, buf[i] );
+		lora_write_register( REG_FIFO, buf[ i ] );
 
 	_delay_ms( 1 );
 
 	lora_write_register( REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX );
+
+	while( !dio0_flag )
+		;
+	dio0_flag = 0;
 }
 //*************************************************************************************************************

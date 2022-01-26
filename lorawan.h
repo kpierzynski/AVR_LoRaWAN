@@ -13,6 +13,7 @@
 #include "lora.h"
 #include "lora_mem.h"
 #include "lorawan_credentials.h"
+#include "lorawan_join.h"
 #include "random.h"
 #include "AES/cmac.h"
 #include "AES/qqq_aes.h"
@@ -61,6 +62,10 @@ enum {
 	PARSE_SUCCESS, PARSE_FAILED
 } PARSE_STATUS;
 
+enum {
+	DOWNLINK_SUCCESS, DOWNLINK_FAILED
+} DOWNLINK_STATS;
+
 typedef struct {
 	uint8_t AppNonce[ APP_NONCE_LEN ];
 	uint8_t NetID[ NET_ID_LEN ];
@@ -75,6 +80,7 @@ typedef struct {
 typedef struct {
 	uint16_t DevNonce;
 	uint32_t FCntUp;
+	uint32_t FCntDown;
 
 	uint8_t AppEUI[ APP_EUI_LEN ];
 	uint8_t DevEUI[ DEV_EUI_LEN ];
@@ -86,8 +92,14 @@ typedef struct {
 	MACCommand_t MACCommand;
 } State_t;
 
+State_t state;
+void (*lora_downlink_event_callback)( uint8_t * buf, uint8_t len );
+
+uint8_t lorawan_fctrl( uint8_t adr, uint8_t adrackreq, uint8_t ack, uint8_t foptslen );
+uint8_t lorawan_mhdr( uint8_t mtype );
+
 uint8_t lorawan_init();
-uint8_t lorawan_join();
-void lorawan_uplink( uint8_t * msg, uint8_t msg_len );
+
+void register_lorawan_downlink_callback( void (*callback)( uint8_t *buf, uint8_t len ) );
 
 #endif /* LORAWAN_H_ */
