@@ -72,14 +72,20 @@ uint8_t lorawan_downlink( uint8_t delay_sec ) {
 
 					state.FCntDown++;
 					uint8_t a_i[ 16 ];
-					uint8_t FCntDown = packet[ MHDR_LEN + DEV_ADDR_LEN + FCNT_LEN ];
+					uint8_t FCntDown = packet[ MHDR_LEN + DEV_ADDR_LEN + FCNT_LEN - 1];
+
 					memcpy( a_i, (uint8_t[ ] ) { 0x01, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, FCntDown, 0x00, 0x00,
 							        0x00, 0x00, 0x01 }, 16 );
 					memcpy( a_i + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
 
+					uart_puts( "a_i before encrypt: " );
+					uart_puthex( a_i, 16 );
+					uart_puts( "FRMPayload clean: " );
+					uart_puthex( FRMPayload, FRMPayload_len );
+
 					aes_encrypt( state.AppSKey, a_i );
 
-					for( uint8_t b = 0; b < 16; b++ ) {
+					for( uint8_t b = 0; b < FRMPayload_len; b++ ) {
 						FRMPayload[ b ] = FRMPayload[ b ] ^ a_i[ b ];
 					}
 

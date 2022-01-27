@@ -81,6 +81,10 @@ void lorawan_derive_keys() {
 	uart_puts("APPSKEY: ");
 	uart_puthex(state.AppSKey, 16);
 
+	uart_puts("DevNonce: ");
+	uart_puthex( (uint8_t*)&state.DevNonce, 2 );
+	uart_putln();
+
 }
 
 uint8_t lorawan_parse_join_accept( uint8_t* data, uint8_t data_len ) {
