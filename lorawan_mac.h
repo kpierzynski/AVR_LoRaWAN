@@ -32,10 +32,9 @@
 
 typedef uint8_t (*MACCommand_handler)(uint8_t *, uint8_t *);
 
-void lorawan_parse_mac_payload(uint8_t * cmd, uint8_t cmd_len);
+uint8_t lorawan_mac_carrige( uint8_t * fopts, uint8_t foptslen, uint8_t * answer, uint8_t * answer_len );
 
-uint8_t RXParamSetupReq(uint8_t * payload, uint8_t * answer);
-uint8_t DevStatusReq(uint8_t * payload, uint8_t * answer);
-uint8_t LinkADRReq(uint8_t * payload, uint8_t * answer );
+uint8_t DevStatusReq( uint8_t * payload, uint8_t * answer );
+uint8_t LinkADRReq( uint8_t * payload, uint8_t * answer );
 
 #endif

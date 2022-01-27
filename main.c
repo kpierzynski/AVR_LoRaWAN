@@ -31,6 +31,11 @@ void parse_uart( char * buf ) {
 	}
 }
 
+void parse_lorawan( uint8_t * buf, uint8_t len ) {
+	uart_puts_P(PSTR("\r\n\r\nPARSE_LORAWAN: "));
+	uart_puthex(buf,len);
+}
+
 int main() {
 
 	// WAIT AFTER BOOTLOADER FLASH
@@ -53,6 +58,7 @@ int main() {
 		while( 1 )
 			;
 	}
+	register_lorawan_downlink_callback( parse_lorawan );
 
 	uart_puts_P( PSTR( "Trying to join.\r\n" ) );
 	while( 1 ) {
@@ -66,11 +72,13 @@ int main() {
 
 	_delay_ms( 5000 );
 	uint8_t cnt = 3;
-	uint8_t buf[ 17 ] = { 'K', ':', ( cnt++ % 10 ) + 48, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x69 };
-	lorawan_uplink( buf, 17 );
-	_delay_ms(5000);
-	lorawan_uplink( buf, 17 );
-	uart_puts_P( PSTR( "Uplink done.\r\n" ) );
+
+	while( 1 ) {
+		uint8_t buf[ 3 ] = { 'K', ':', ( cnt++ % 10 ) + 48 };
+		lorawan_uplink( buf, 3 );
+		_delay_ms(60000);
+	}
+
 
 	char uart_buf[ 32 ];
 	while( 1 ) {

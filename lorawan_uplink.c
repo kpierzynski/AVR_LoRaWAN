@@ -29,17 +29,8 @@ void lorawan_uplink( uint8_t * msg, uint8_t msg_len ) {
 		memcpy( b_0 + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
 		//memcpy( b_0 + 10, &state.FCntUp, 4 );
 
-		uart_puts( "B_0: " );
-		uart_puthex( b_0, 16 );
-
 		memcpy( b_0 + 16, payload, len );
 		cmac_gen( state.NwkSKey, b_0, 16 + len, payload + len );
-
-		uart_puts( "B_0 after cmac_gen: " );
-		uart_puthex( b_0, 16 + len );
-
-		uart_puts( "Payload after mic: " );
-		uart_puthex( payload, payload_len );
 	}
 
 	void lorawan_encrypt_uplink() {
@@ -51,20 +42,6 @@ void lorawan_uplink( uint8_t * msg, uint8_t msg_len ) {
 		memcpy( a_i, (uint8_t[ ] ) { 0x01, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, state.FCntUp, 0x00, 0x00, 0x00, 0x00, 0x01 }, 16 );
 		memcpy( a_i + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
 		//memcpy( a_i + 10, &state.FCntUp, 4 );
-
-		uart_puts( "A_i: " );
-		uart_puthex( a_i, 16 );
-		/*
-		aes_encrypt( state.AppSKey, a_i );
-
-		for( uint8_t b = 0; b < 16; b++ ) {
-			payload[ MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + state.MACCommand.FOptsLen + FPORT_LEN + b ] = payload[ MHDR_LEN
-			        + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + state.MACCommand.FOptsLen + FPORT_LEN + b ] ^ a_i[ b ];
-		}
-		uart_puts( "Payload after encrypt: " );
-		uart_puthex( payload, payload_len );
-		return;
-		*/
 
 		uint8_t n = ( msg_len + 15 ) / 16;
 		for( i = 1; i <= n; i++ ) {
@@ -93,26 +70,23 @@ void lorawan_uplink( uint8_t * msg, uint8_t msg_len ) {
 			memcpy( payload + MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN, state.MACCommand.FOpts, state.MACCommand.FOptsLen );
 		payload[ MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + state.MACCommand.FOptsLen ] = 1;
 		memcpy( payload + MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + state.MACCommand.FOptsLen + FPORT_LEN, msg, msg_len );
-
-		uart_puts( "Payload after prepare: " );
-		uart_puthex( payload, payload_len );
 	}
 
 	lorawan_prepare_uplink();
 	lorawan_encrypt_uplink();
 	lorawan_mic_uplink();
 
-	uart_puts( "Payload: " );
-	uart_puthex( payload, payload_len );
-	uart_puts( "Payload_len: " );
-	uart_putint( payload_len, 10 );
-	uart_putln();
-
 	dio0_flag = 0;
+	uart_puts("Payload: ");
+	uart_puthex(payload, payload_len);
+
+	uart_puts("Mac answer: ");
+	uart_puthex(state.MACCommand.FOpts,state.MACCommand.FOptsLen );
+
 	lora_putd( payload, payload_len );
 	TCNT1 = 0;
 	state.FCntUp++;
-	lorawan_downlink(5);
+	lorawan_downlink(state.rx1.delay_sec);
 
 }
 

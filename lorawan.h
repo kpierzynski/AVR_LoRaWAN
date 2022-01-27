@@ -51,6 +51,13 @@
 #define FPORT_LEN 1
 #define FCNT_LEN 2
 
+#define DATARATE_LEN 7
+
+#define MAX_EIRP 16
+#define SX1276_MAX_TX_POWER 20
+
+#define TTN_LORA_CHANNELS_LEN 8
+
 enum {
 	JOIN_SUCCESS = 1, JOIN_FAILED
 } JOIN_STATUS;
@@ -78,6 +85,17 @@ typedef struct {
 } MACCommand_t;
 
 typedef struct {
+		RadioSettings_t settings;
+		uint8_t delay_sec;
+} Window_t;
+
+typedef struct {
+		uint32_t main_channels[3];
+		uint32_t channels[16];
+		uint8_t len;
+} Channels_t;
+
+typedef struct {
 	uint16_t DevNonce;
 	uint32_t FCntUp;
 	uint32_t FCntDown;
@@ -88,11 +106,19 @@ typedef struct {
 	uint8_t AppKey[ APP_KEY_LEN ];
 	uint8_t AppSKey[ APPSKEY_LEN ];
 	uint8_t NwkSKey[ NWKSKEY_LEN ];
+
 	JoinAccept_t JoinAccept;
 	MACCommand_t MACCommand;
+
+	Window_t rx1;
+	Channels_t Channels;
+
 } State_t;
 
-State_t state;
+extern State_t state;
+
+extern const uint8_t DataRates[DATARATE_LEN][2] PROGMEM;
+
 void (*lora_downlink_event_callback)( uint8_t * buf, uint8_t len );
 
 uint8_t lorawan_fctrl( uint8_t adr, uint8_t adrackreq, uint8_t ack, uint8_t foptslen );

@@ -2,8 +2,7 @@
 
 #include "MK_USART/mkuart.h"
 
-const uint8_t MACCommands_len[ ][ 2 ] PROGMEM = {
-		{ 0, 0x00 }, //0x00
+const uint8_t MACCommands_len[ ][ 2 ] PROGMEM = { { 0, 0x00 }, //0x00
         { 0, 0x00 }, //0x01
         { 1, 2 }, //LINKCHECK
         { 1, 4 }, //LINADDR
@@ -19,20 +18,90 @@ const uint8_t MACCommands_len[ ][ 2 ] PROGMEM = {
         { 1, 5 }, //DEVICETIME
         };
 
-MACCommand_handler handlers[ 14 ] = { 0, 0, LinkADRReq, 0, 0, RXParamSetupReq, DevStatusReq, 0, 0, 0, 0, 0, 0, 0 };
+MACCommand_handler handlers[ 14 ] = { 0, 0, 0, LinkADRReq, 0, 0, DevStatusReq, 0, 0, 0, 0, 0, 0, 0 };
 
-uint8_t LinkADRReq( uint8_t * payload, uint8_t * answer ) {
+//TODO: BE AWARE HERE. THIS MAC SHOULD BE ADDED FOR ALL UPLINKS UNTIL NODE RECEIVE DOWNLINK!!!
+uint8_t RXTimingSetupReq( uint8_t * payload, uint8_t * answer ) {
 
-	uint8_t DataRate_TXPower = payload[ 0 ];
-	uint16_t ChMask = ( (uint16_t )payload[ 1 ] << 8 ) | payload[ 2 ];
-	uint8_t Redundancy = payload[ 3 ];
+	uint8_t Settings = payload[ 0 ];
+	uint8_t Del = Settings & 0b1111;
+
+	uint8_t Delay = ( Del == 0 ) ? 1 : Del;
+
+	state.rx1.delay_sec = Delay;
+
+	return 0;
+}
+
+//TODO: BE AWARE HERE. THIS MAC SHOULD BE ADDED FOR ALL UPLINKS UNTIL NODE RECEIVE DOWNLINK!!!
+uint8_t DlChannelReq( uint8_t * payload, uint8_t * answer ) {
+	uint8_t ChIndex = payload[ 0 ];
+	uint32_t Frequency = ( (uint32_t )payload[ 3 ] << 16 ) | ( (uint32_t )payload[ 2 ] << 8 ) | ( (uint32_t )payload[ 1 ] );
+	Frequency *= 100;
 
 	answer[ 0 ] = 0;
 	return 1;
 }
 
+uint8_t NewChannelReq( uint8_t * payload, uint8_t * answer ) {
+
+	uint8_t ChIndex = payload[ 0 ];
+	uint32_t Frequency = ( (uint32_t )payload[ 3 ] << 16 ) | ( (uint32_t )payload[ 2 ] << 8 ) | ( (uint32_t )payload[ 1 ] );
+	Frequency *= 100;
+
+	uint8_t DrRange = payload[ 4 ];
+	uint8_t MaxDR = ( DrRange >> 4 );
+	uint8_t MinDR = ( DrRange & 0b1111 );
+
+	answer[ 0 ] = 0;
+
+	return 1;
+}
+
+uint8_t DutyCycleReq( uint8_t * payload, uint8_t * answer ) {
+
+	uint8_t DutyCyclePL = payload[ 0 ];
+	uint8_t MaxDCycle = DutyCyclePL & 0b1111;
+
+	float aggregated = 1 / ( 1 << MaxDCycle );
+	return 0;
+}
+
+uint8_t LinkADRReq( uint8_t * payload, uint8_t * answer ) {
+
+	answer[0] = 0b111;
+
+	uint8_t DataRate_TXPower = payload[ 0 ];
+	uint16_t ChMask = ( (uint16_t )payload[ 1 ] << 8 ) | payload[ 2 ];
+	uint8_t Redundancy = payload[ 3 ];
+
+	uint8_t DataRate = (DataRate_TXPower >> 4);
+	uint8_t TXPower = (DataRate_TXPower & 0b1111);
+
+	uint8_t ChMaskCntl = (Redundancy >> 4) & 0b111;
+	uint8_t NbTrans = (Redundancy & 0b1111 );
+
+	state.rx1.settings.sf = DataRates[DataRate][0];
+	state.rx1.settings.bw = DataRates[DataRate][1];
+
+	if( TXPower < 8 ) lora_set_tx_power( MAX_EIRP - 2*TXPower );
+	else answer[0] &= ~(1<<2);
+
+	uart_puts("TXPower: ");
+	uart_putint(TXPower, 10);
+	uart_puts("\r\nDataRate: ");
+	uart_putint(DataRate, 10);
+	uart_puts("\r\nChMastCntl: ");
+	uart_putint(ChMaskCntl, 10);
+	uart_putln();
+	uart_puts("LinkADRReq payload: ");
+	uart_puthex(payload, 4);
+	uart_putln();
+
+	return 1;
+}
+
 uint8_t RXParamSetupReq( uint8_t * payload, uint8_t * answer ) {
-	uart_puts( "RXParamSetupReq\r\n" );
 
 	uint8_t DLSettings = payload[ 0 ];
 	uint32_t Frequency = ( (uint32_t )payload[ 3 ] << 16 ) | ( (uint32_t )payload[ 2 ] << 8 ) | ( (uint32_t )payload[ 1 ] );
@@ -41,30 +110,16 @@ uint8_t RXParamSetupReq( uint8_t * payload, uint8_t * answer ) {
 	uint8_t RX1DRoffset = ( DLSettings >> 4 ) & 0b111;
 	uint8_t RX2DataRate = ( DLSettings ) & 0b1111;
 
-	uart_putln();
-	uart_puts_P( PSTR( "Frequency: " ) );
-	uart_puthex( payload + 1, 3 );
-	uart_putln();
-	uart_puts_P( PSTR( "DLSettings: " ) );
-	uart_putint( DLSettings, 16 );
-	uart_putln();
-
 	answer[ 0 ] = 0b111; //Temporary write that this device is dumb.
 
 	return 1;
 }
 
 uint8_t DevStatusReq( uint8_t * payload, uint8_t * answer ) {
-	uart_puts( "DevStatusReq\r\n" );
 	int8_t snr = lora_get_snr();
 
 	uint8_t Battery = BATTERY_EXTERNAL_POWER_SOURCE;
 	uint8_t Margin = ( ( ( snr < 0 ) ? 1 : 0 ) << 6 ) | ( snr & 0b11111 );
-
-	uart_puts( "SNR: " );
-	uart_putint( snr, 10 );
-	uart_puts( "Margin: " );
-	uart_putint( Margin, 10 );
 
 	answer[ 0 ] = Battery;
 	answer[ 1 ] = Margin;
@@ -84,7 +139,7 @@ uint8_t lorawan_mac_carrige( uint8_t * fopts, uint8_t foptslen, uint8_t * answer
 		else {
 			answer[ cnt ] = CID;
 			if( handlers[ CID ] ) {
-				uint8_t bytes = handlers[ CID ]( fopts + cnt, answer + cnt + 1 );
+				uint8_t bytes = handlers[ CID ]( fopts + wsk + 1, answer + cnt + 1 );
 				cnt += ( bytes + 1 );
 			}
 		}
@@ -93,43 +148,4 @@ uint8_t lorawan_mac_carrige( uint8_t * fopts, uint8_t foptslen, uint8_t * answer
 	}
 	*answer_len = cnt;
 	return 1;
-}
-
-void lorawan_parse_mac_payload( uint8_t * cmd, uint8_t cmd_len ) {
-	uart_puts( "lorawan_parse_mac_payload\r\n" );
-	union {
-		struct s {
-			uint8_t MHDR;
-			uint8_t DevAddr[ DEV_ADDR_LEN ];
-			uint8_t FCtrl;
-			uint16_t FCntDown;
-		} params;
-		uint8_t buf[ sizeof(struct s) ];
-	} MACCommand;
-
-	const uint8_t offset = DEV_ADDR_LEN + 1 + 1 + 2;
-
-	memcpy( MACCommand.buf, cmd, offset );
-
-	if( ( ( MACCommand.params.MHDR >> 5 ) & 0b111 ) != UNCONFIRMED_DATA_DOWN )
-		return;
-
-	if( memcmp( MACCommand.params.DevAddr, state.JoinAccept.DevAddr, DEV_ADDR_LEN ) )
-		return;
-
-	uint8_t * FOpts = cmd + offset;
-	uint8_t FOptsLen = ( MACCommand.params.FCtrl & 0b1111 );
-
-	if( FOptsLen == 0 )
-		return;
-	//uint8_t answer[16];
-	//uint8_t answer_len = 0;
-	lorawan_mac_carrige( FOpts, FOptsLen, state.MACCommand.FOpts, &state.MACCommand.FOptsLen );
-
-	uart_puts( "\r\nAnswer for MAC commands: " );
-	uart_puthex( state.MACCommand.FOpts, state.MACCommand.FOptsLen );
-	uart_puts( "answer_len: " );
-	uart_putint( state.MACCommand.FOptsLen, 10 );
-	uart_putln();
-	//lorawan_send_mac(answer, answer_len);
 }

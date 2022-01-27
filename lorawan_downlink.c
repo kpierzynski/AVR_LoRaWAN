@@ -24,68 +24,71 @@ uint8_t lorawan_downlink( uint8_t delay_sec ) {
 	}
 
 	if( lora_getd( packet, &len ) == GETD_SUCCESS ) {
-		state.FCntDown++;
+		uart_puts( "Packet: " );
 		uart_puthex( packet, len );
 
 		uint8_t MHDR = packet[ 0 ];
 
-		switch( ( MHDR >> 5 ) ){
+		switch( ( MHDR >> 5 ) ) {
 			case JOIN_ACCEPT:
 				if( lorawan_parse_join_accept( packet, len ) != PARSE_SUCCESS )
 					return DOWNLINK_FAILED;
 
 				lorawan_derive_keys();
-
-				uart_puts( "NwkSKey: " );
-				uart_puthex( state.NwkSKey, SKEY_LEN );
-				uart_puts( "AppSKey: " );
-				uart_puthex( state.AppSKey, SKEY_LEN );
 				break;
 
 			case UNCONFIRMED_DATA_DOWN:
-				uart_puts( "UNCONFIRMED_DATA_DOWN\r\n" );
-				uart_puthex( packet, len );
+				{
 
-				lorawan_parse_mac_payload( packet, len );
+				uint8_t FCtrl;
+				FCtrl = packet[ MHDR_LEN + DEV_ADDR_LEN ];
+				uint8_t FOptsLen = FCtrl & 0b1111;
 
-				//if( lora_downlink_event_callback ) {
-					//get pointer to frmpayload
-					//check if any data
-					//check if fport > 0
-					//decrypt payload
-					//run callback
-					uint8_t FCtrl = packet[ MHDR_LEN + DEV_ADDR_LEN ];
-					uint8_t FOptsLen = FCtrl & 0b1111;
+				uint8_t * FOpts = packet + MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN;
+
+				uart_puts( "Parsing MAC: " );
+				lorawan_mac_carrige( FOpts, FOptsLen, state.MACCommand.FOpts, &state.MACCommand.FOptsLen );
+				uart_puthex( state.MACCommand.FOpts, state.MACCommand.FOptsLen );
+
+				if( lora_downlink_event_callback ) {
+
+					//No FPORT nor FRMPayload present if true. FPORT is not present, if FRMPayload is empty.
+					if( MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + FOptsLen + MIC_LEN == len ) {
+						break;
+					}
 
 					uint8_t FRMPayload_off = MHDR_LEN + DEV_ADDR_LEN + FCTRL_LEN + FCNT_LEN + FOptsLen + FPORT_LEN;
 					uint8_t FRMPayload_len = len - MIC_LEN - FRMPayload_off;
 
-					uint8_t * FRMPayload = packet + FRMPayload_off;
 					if( FRMPayload_len == 0 )
 						break;
+
+					uint8_t * FRMPayload = packet + FRMPayload_off;
 
 					const uint8_t Uplink = 0;
 					uint8_t Dir = ( Uplink ) ? 0 : 1;
 
 					uint8_t i = 1;
 
+					state.FCntDown++;
 					uint8_t a_i[ 16 ];
-					memcpy( a_i, (uint8_t[ ] ) { 0x01, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, state.FCntDown, 0x00, 0x00,
+					uint8_t FCntDown = packet[ MHDR_LEN + DEV_ADDR_LEN + FCNT_LEN ];
+					memcpy( a_i, (uint8_t[ ] ) { 0x01, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, FCntDown, 0x00, 0x00,
 							        0x00, 0x00, 0x01 }, 16 );
 					memcpy( a_i + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
-
-					uart_puts( "A_i: " );
-					uart_puthex( a_i, 16 );
 
 					aes_encrypt( state.AppSKey, a_i );
 
 					for( uint8_t b = 0; b < 16; b++ ) {
 						FRMPayload[ b ] = FRMPayload[ b ] ^ a_i[ b ];
 					}
-					uart_puts( "FRMPayload after encrypt: " );
-					uart_puthex( FRMPayload, FRMPayload_len );
 
-				//}
+					lora_downlink_event_callback( FRMPayload, FRMPayload_len );
+
+				}
+
+			}
+
 				break;
 
 			default:
