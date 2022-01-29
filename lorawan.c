@@ -7,32 +7,32 @@
 
 #include "lorawan.h"
 
-const uint8_t DataRates[DATARATE_LEN][2] PROGMEM = {
-		{SF12, BW125},
-		{SF11, BW125},
-		{SF10, BW125},
-		{SF9,  BW125},
-		{SF8,  BW125},
-		{SF7,  BW125},
-		{SF8,  BW250}
+const uint8_t DataRates[ DATARATE_LEN ][ 2 ] PROGMEM = {
+        { SF12, BW125 },
+        { SF11, BW125 },
+        { SF10, BW125 },
+        { SF9, BW125 },
+        { SF8, BW125 },
+        { SF7, BW125 },
+        { SF8, BW250 }
 };
 
-const uint32_t Channels[TTN_LORA_CHANNELS_LEN] PROGMEM = {
-		868100000,
-		868300000,
-		868500000,
-		867100000,
-		867300000,
-		867500000,
-		867700000,
-		867900000
+const uint32_t Channels[ TTN_LORA_CHANNELS_LEN ] PROGMEM = {
+        868100000,
+        868300000,
+        868500000,
+        867100000,
+        867300000,
+        867500000,
+        867700000,
+        867900000
 };
 
 State_t state;
 
-void (*lora_downlink_event_callback)( uint8_t * buf, uint8_t len );
+void (*lora_downlink_event_callback)( uint8_t fport, uint8_t * buf, uint8_t len );
 
-void register_lorawan_downlink_callback( void (*callback)( uint8_t *buf, uint8_t len ) ) {
+void register_lorawan_downlink_callback( void (*callback)( uint8_t fport, uint8_t *buf, uint8_t len ) ) {
 	lora_downlink_event_callback = callback;
 }
 
@@ -70,3 +70,46 @@ uint8_t lorawan_init() {
 
 	return INIT_SUCCESS;
 }
+
+void lorawan_encrypt_FRMPayload( uint8_t * key, uint8_t Dir, uint32_t FCnt, uint8_t * payload, uint8_t len ) {
+
+	uint8_t pos = 0;
+	uint8_t i = 1;
+
+	uint8_t a_i[ 16 ] = { 0x01, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, i };
+	memcpy( a_i + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
+	memcpy( a_i + 10, &FCnt, 4 );
+
+	uint8_t n = ( len + 15 ) / 16;
+
+	for( i = 1; i <= n; i++ ) {
+		uint8_t max = 16;
+
+		if( i == n )
+			max = ( ( len % 16 ) == 0 ) ? 16 : ( len % 16 );
+
+		a_i[ 15 ] = i;
+
+		uint8_t s_i[ 16 ];
+		memcpy( s_i, a_i, 16 );
+
+		aes_encrypt( key, s_i );
+
+		for( uint8_t b = 0; b < max; b++ )
+			payload[ pos + b ] = payload[ pos + b ] ^ s_i[ b ];
+		pos += max;
+	}
+}
+
+void lorawan_mic_uplink(uint8_t Dir, uint32_t FCnt, uint8_t * payload, uint8_t len, uint8_t * MIC) {
+
+	uint8_t b_0[ 16 + len ];
+
+	memcpy( b_0, (uint8_t[ ] ) { 0x49, 0x00, 0x00, 0x00, 0x00, Dir, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, len }, 16 );
+	memcpy( b_0 + 6, state.JoinAccept.DevAddr, DEV_ADDR_LEN );
+	memcpy( b_0 + 10, &FCnt, 4 );
+
+	memcpy( b_0 + 16, payload, len );
+	cmac_gen( state.NwkSKey, b_0, 16 + len, MIC );
+}
+

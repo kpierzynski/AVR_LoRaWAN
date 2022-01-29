@@ -9,85 +9,60 @@
 
 uint8_t lorawan_join() {
 
-	lorawan_send_join_request();
-	TCNT1 = 0;
-	lorawan_downlink( 5 );
+	lorawan_join_send_request();
+
+	TIMER_RESET;
+
+	if( lorawan_downlink( JOIN_ACCEPT_DELAY1 ) != DOWNLINK_SUCCESS )
+		return JOIN_FAILED;
 
 	return JOIN_SUCCESS;
 }
 
-void lorawan_send_join_request() {
+void lorawan_join_send_request() {
 
 	state.DevNonce = random_u16();
 
-	union {
-		struct s {
-			uint8_t MHDR;
-			uint8_t AppEUI[ APP_EUI_LEN ];
-			uint8_t DevEUI[ DEV_EUI_LEN ];
-			uint16_t DevNonce;
-			uint8_t MIC[ MIC_LEN ];
-		} params;
-		uint8_t buf[ sizeof(struct s) ];
-	} JoinRequest;
+	uint8_t JoinRequest[ JOIN_REQUEST_LEN ];
 
-	JoinRequest.params.DevNonce = ( state.DevNonce >> 8 ) & 0xFF;
-	JoinRequest.params.DevNonce |= ( state.DevNonce << 8 );
-	//Todo: ??? wtf is this
+	JoinRequest[0] = lorawan_mhdr( JOIN_REQUEST );
+	memcpy( JoinRequest + JOIN_REQUEST_APP_EUI_OFFSET, state.AppEUI, APP_EUI_LEN );
+	memcpy( JoinRequest + JOIN_REQUEST_DEV_EUI_OFFSET, state.DevEUI, DEV_EUI_LEN );
+	memcpy( JoinRequest + JOIN_REQUEST_DEV_NONCE_OFFSET, &state.DevNonce, DEV_NONCE_LEN);
 
-	JoinRequest.params.MHDR = lorawan_mhdr( JOIN_REQUEST );
-	memcpy( JoinRequest.params.DevEUI, state.DevEUI, DEV_EUI_LEN );
-	memcpy( JoinRequest.params.AppEUI, state.AppEUI, APP_EUI_LEN );
+	cmac_gen( state.AppKey, JoinRequest, 19, JoinRequest + JOIN_REQUEST_MIC_OFFSET );
 
-	cmac_gen( state.AppKey, JoinRequest.buf, 19, JoinRequest.params.MIC );
-
-	lora_putd( JoinRequest.buf, JOIN_REQUEST_LEN );
+	uart_puts("JOIN_REQUEST: ");
+	uart_puthex(JoinRequest, JOIN_REQUEST_LEN);
+	lora_putd( JoinRequest, JOIN_REQUEST_LEN );
 }
 
-void lorawan_derive_keys() {
+void lorawan_join_derive_keys() {
 
-#define KEYDERICATION_PAD16_LEN 7
-#define KEYDERICATION_PAD16 16-KEYDERICATION_PAD16_LEN
+	uint8_t KeyDerivation2[ KEY_DERIVATION_LEN ] = {0};
+	memcpy( KeyDerivation2 + KEY_DERIVATION_APP_NONCE_OFFSET, state.JoinAccept.AppNonce, APP_NONCE_LEN );
+	memcpy( KeyDerivation2 + KEY_DERIVATION_NET_ID_OFFSET, state.JoinAccept.NetID, NET_ID_LEN );
+	memcpy( KeyDerivation2 + KEY_DERIVATION_DEV_NONCE_OFFSET, &state.DevNonce, DEV_NONCE_LEN);
 
-	union {
-		struct s {
-			uint8_t type;
-			uint8_t AppNonce[ APP_NONCE_LEN ];
-			uint8_t NetID[ NET_ID_LEN ];
-			uint16_t DevNonce;
-		} params;
-		uint8_t buf[ sizeof(struct s) + KEYDERICATION_PAD16_LEN ];
-	} KeyDerivation;
-
-	memset( KeyDerivation.buf + KEYDERICATION_PAD16, 0x00, KEYDERICATION_PAD16_LEN );
-
-	memcpy( KeyDerivation.params.AppNonce, state.JoinAccept.AppNonce, APP_NONCE_LEN );
-	memcpy( KeyDerivation.params.NetID, state.JoinAccept.NetID, NET_ID_LEN );
-
-	//TODO: why i had to swap bytes here
-	KeyDerivation.params.DevNonce = ( state.DevNonce >> 8 ) & 0xFF;
-	KeyDerivation.params.DevNonce |= ( state.DevNonce << 8 );
-
-	KeyDerivation.params.type = 0x01;
-	memcpy( state.NwkSKey, KeyDerivation.buf, 16 );
+	KeyDerivation2[0] = 0x01;
+	memcpy( state.NwkSKey, KeyDerivation2, AES_BLOCK_LEN );
 	aes_encrypt( state.AppKey, state.NwkSKey );
 
-	KeyDerivation.params.type = 0x02;
-	memcpy( state.AppSKey, KeyDerivation.buf, 16 );
+	KeyDerivation2[0] = 0x02;
+	memcpy( state.AppSKey, KeyDerivation2, AES_BLOCK_LEN );
 	aes_encrypt( state.AppKey, state.AppSKey );
 
-	uart_puts("NWSKEY: ");
-	uart_puthex(state.NwkSKey, 16);
-	uart_puts("APPSKEY: ");
-	uart_puthex(state.AppSKey, 16);
+	uart_puts( "NWSKEY: " );
+	uart_puthex( state.NwkSKey, 16 );
+	uart_puts( "APPSKEY: " );
+	uart_puthex( state.AppSKey, 16 );
 
-	uart_puts("DevNonce: ");
-	uart_puthex( (uint8_t*)&state.DevNonce, 2 );
+	uart_puts( "DevNonce: " );
+	uart_puthex( (uint8_t* )&state.DevNonce, 2 );
 	uart_putln();
-
 }
 
-uint8_t lorawan_parse_join_accept( uint8_t* data, uint8_t data_len ) {
+uint8_t lorawan_join_parse_accept( uint8_t* data, uint8_t data_len ) {
 
 	union {
 		struct s {

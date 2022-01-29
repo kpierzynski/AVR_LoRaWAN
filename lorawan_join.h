@@ -17,9 +17,11 @@
 
 #include "lorawan_downlink.h"
 
+#define JOIN_ACCEPT_DELAY1 5
+
 uint8_t lorawan_join();
-void lorawan_send_join_request();
-uint8_t lorawan_parse_join_accept( uint8_t * data, uint8_t data_len );
-void lorawan_derive_keys();
+void lorawan_join_send_request();
+uint8_t lorawan_join_parse_accept( uint8_t * data, uint8_t data_len );
+void lorawan_join_derive_keys();
 
 #endif /* LORAWAN_JOIN_H_ */
