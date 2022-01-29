@@ -27,6 +27,15 @@
 #define CONFIRMED_DATA_UP 0b100
 #define CONFIRMED_DATA_DOWN 0b101
 
+
+#define TIMER1_1SEC (F_CPU/1024)
+#define TIMER_256uS (F_CPU/1000000/4)
+
+#define TIMER_RESET TCNT1 = 0
+
+
+#define DEV_NONCE_LEN 2
+
 #define EUI_LEN 8
 #define APP_EUI_LEN EUI_LEN
 #define DEV_EUI_LEN EUI_LEN
@@ -40,7 +49,18 @@
 
 #define APP_KEY_LEN 16
 
-#define JOIN_REQUEST_LEN 23
+#define JOIN_REQUEST_LEN (MHDR_LEN + APP_EUI_LEN + DEV_EUI_LEN + DEV_NONCE_LEN + MIC_LEN)
+#define JOIN_REQUEST_MIC_OFFSET (MHDR_LEN + APP_EUI_LEN + DEV_EUI_LEN + DEV_NONCE_LEN)
+#define JOIN_REQUEST_DEV_NONCE_OFFSET (MHDR_LEN + APP_EUI_LEN + DEV_EUI_LEN)
+#define JOIN_REQUEST_DEV_EUI_OFFSET (MHDR_LEN + APP_EUI_LEN)
+#define JOIN_REQUEST_APP_EUI_OFFSET (MHDR_LEN)
+
+#define AES_BLOCK_LEN 16
+#define TYPE_LEN 1
+#define KEY_DERIVATION_LEN (TYPE_LEN + APP_NONCE_LEN  + NET_ID_LEN + DEV_NONCE_LEN + 7)
+#define KEY_DERIVATION_APP_NONCE_OFFSET (TYPE_LEN)
+#define KEY_DERIVATION_NET_ID_OFFSET (TYPE_LEN + APP_NONCE_LEN)
+#define KEY_DERIVATION_DEV_NONCE_OFFSET (TYPE_LEN + APP_NONCE_LEN + NET_ID_LEN)
 
 #define APP_NONCE_LEN 3
 #define NET_ID_LEN 3
@@ -70,8 +90,12 @@ enum {
 } PARSE_STATUS;
 
 enum {
-	DOWNLINK_SUCCESS, DOWNLINK_FAILED
+	DOWNLINK_SUCCESS, DOWNLINK_FAILED, DOWNLINK_NO_DATA
 } DOWNLINK_STATS;
+
+enum {
+	UPLINK_DIRECTION = 0, DOWNLINK_DIRECTION = 1
+} DIRECTION;
 
 typedef struct {
 	uint8_t AppNonce[ APP_NONCE_LEN ];
@@ -119,13 +143,15 @@ extern State_t state;
 
 extern const uint8_t DataRates[DATARATE_LEN][2] PROGMEM;
 
-void (*lora_downlink_event_callback)( uint8_t * buf, uint8_t len );
+void (*lora_downlink_event_callback)( uint8_t fport, uint8_t * buf, uint8_t len );
 
 uint8_t lorawan_fctrl( uint8_t adr, uint8_t adrackreq, uint8_t ack, uint8_t foptslen );
 uint8_t lorawan_mhdr( uint8_t mtype );
+void lorawan_encrypt_FRMPayload( uint8_t * key, uint8_t Dir, uint32_t FCnt, uint8_t * payload, uint8_t len );
+void lorawan_mic_uplink(uint8_t Dir, uint32_t FCnt, uint8_t * payload, uint8_t len, uint8_t * MIC);
 
 uint8_t lorawan_init();
 
-void register_lorawan_downlink_callback( void (*callback)( uint8_t *buf, uint8_t len ) );
+void register_lorawan_downlink_callback( void (*callback)( uint8_t fport, uint8_t *buf, uint8_t len ) );
 
 #endif /* LORAWAN_H_ */

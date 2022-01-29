@@ -25,15 +25,18 @@ void parse_uart( char * buf ) {
 	if( !strncasecmp( "AT+RST?", buf, 7 ) ) {
 		cli();
 		// disable interrupts
-		wdt_enable( 0 );  	// set  watchdog
+		wdt_enable( 0 );// set  watchdog
 		while( 1 )
 			;           // wait for RESET
 	}
 }
 
-void parse_lorawan( uint8_t * buf, uint8_t len ) {
-	uart_puts_P(PSTR("\r\n\r\nPARSE_LORAWAN: "));
-	uart_puthex(buf,len);
+void parse_lorawan( uint8_t fport, uint8_t * buf, uint8_t len ) {
+	uart_puts_P( PSTR( "\r\n\r\nPARSE_LORAWAN: " ) );
+	uart_puthex( buf, len );
+	uart_puts_P( PSTR( "On fport: " ) );
+	uart_putint( fport, 10 );
+	uart_putln();
 }
 
 int main() {
@@ -71,17 +74,21 @@ int main() {
 	}
 
 	_delay_ms( 5000 );
-	uint8_t cnt = 3;
-
-	while( 1 ) {
-		uint8_t buf[ 3 ] = { 'K', ':', ( cnt++ % 10 ) + 48 };
-		lorawan_uplink( buf, 3 );
-		_delay_ms(60000);
-	}
-
-
+	uint16_t cnt = 0, led = 0;
 	char uart_buf[ 32 ];
 	while( 1 ) {
+		if( cnt == 18000 ) {
+			uint8_t buf[ 3 ] = { 'K', ':', ( cnt % 10 ) + 48 };
+			lorawan_uplink( buf, 3 );
+			cnt = 0;
+		}
+		if( led == 100 ) {
+			PORTC ^= ( 1 << PC5 );
+			led = 0;
+		}
+		_delay_ms( 10 );
+		cnt++;
+		led++;
 		UART_RX_STR_EVENT( uart_buf );
 	}
 
